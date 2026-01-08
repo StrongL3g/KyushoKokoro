@@ -1,0 +1,13 @@
+{
+  "spec_id": 260,
+  "rotation": [
+    {
+      "spell": "sinister_strike",
+      "condition": "combo_points < 5 and energy >= 45"
+    },
+    {
+      "spell": "dispatch",
+      "condition": "combo_points >= 6 and energy >= 27"
+    }
+  ]
+}
