@@ -71,7 +71,6 @@ class ResourceDetector:
 
     def _read_icon_counter(self):
         count = 0
-        print("🔍 Combo points brightness:")
         for i, pos in enumerate(self.config["icon_positions"]):
             x = self.rect[0] + pos[0]
             y = self.rect[1] + pos[1]
@@ -199,9 +198,21 @@ class CoreController:
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
 
-    def _load_resource_configs(self, spec_id):
+        self.current_profile = None
+        self.current_hotkeys = None
+
+    def _load_spec_config(self, spec_id):
+
+        print(f"🔍 Loading config for spec_id={spec_id}")
+
+        """Загружает ВСЁ для данного спека: ресурсы, профиль, хоткеи"""
+        self._last_spec_id = spec_id
         self._resource_configs = []
+        self.current_profile = None
+        self.current_hotkeys = None
+
         try:
+            # 1. Ресурсы
             with open("class_data/spec_resources.json", 'r', encoding='utf-8') as f:
                 spec_map = json.load(f)
             resource_names = spec_map.get(str(spec_id), [])
@@ -209,10 +220,25 @@ class CoreController:
                 path = f"class_data/resources/{name}.json"
                 if os.path.exists(path):
                     with open(path, 'r', encoding='utf-8') as f:
-                        cfg = json.load(f)
-                    self._resource_configs.append(cfg)
+                        self._resource_configs.append(json.load(f))
+
+            # 2. Профиль ротации
+            profile_path = f"profiles/{spec_id}.json"
+            if os.path.exists(profile_path):
+                with open(profile_path, 'r', encoding='utf-8') as f:
+                    self.current_profile = json.load(f)
+
+            # 3. Хоткеи
+            hotkey_path = f"class_data/{spec_id}/hotkeys.json"
+            if os.path.exists(hotkey_path):
+                with open(hotkey_path, 'r', encoding='utf-8') as f:
+                    self.current_hotkeys = json.load(f)
+
+            print(f"✅ Profile loaded: {self.current_profile is not None}")
+            print(f"✅ Hotkeys loaded: {self.current_hotkeys is not None}")
+
         except Exception as e:
-            print(f"⚠️ Resource config error: {e}")
+            print(f"⚠️ Error loading config for {spec_id}: {e}")
 
     def _is_white(self, px, tol=15):
         return px[0] >= 255 - tol and px[1] >= 255 - tol and px[2] >= 255 - tol
@@ -274,25 +300,46 @@ class CoreController:
         if self.combat_action_active:
             return
         self.combat_action_active = True
-        self.combat_action_thread = threading.Thread(target=self._combat_action_loop, daemon=True)
+        self.combat_action_thread = threading.Thread(target=self._rotation_action_loop, daemon=True)
         self.combat_action_thread.start()
 
     def _stop_combat_action(self):
         self.combat_action_active = False
 
-    def _combat_action_loop(self):
+    def _rotation_action_loop(self):
+        """Основной цикл ротации — заменяет старый combat_action_loop"""
         while self.combat_action_active and self.monitoring:
+            # Блокировка при модификаторах
             if any(self.modifiers_pressed.values()):
                 time.sleep(0.01)
                 continue
-            try:
-                self.keyboard.press(self.combat_key)
-                self.keyboard.release(self.combat_key)
-            except Exception as e:
-                print(f"[Action] Keyboard error: {e}")
-                break
-            delay_ms = random.randint(self.min_interval_ms, self.max_interval_ms)
-            time.sleep(delay_ms / 1000.0)
+
+            # Проверяем профиль и хоткеи
+            if not self.current_profile or not self.current_hotkeys:
+                time.sleep(0.1)
+                continue
+
+            # Обходим правила по приоритету
+            action_key = None
+            for rule in self.current_profile.get("rotation", []):
+                spell = rule["spell"]
+                condition = rule["condition"]
+                if self._evaluate_condition(condition):
+                    action_key = self.current_hotkeys.get(spell)
+                    if action_key:
+                        break
+
+            # Выполняем нажатие
+            if action_key:
+                try:
+                    self.keyboard.press(action_key)
+                    self.keyboard.release(action_key)
+                    # print(f"✅ Pressed: {action_key} ({spell})")  # отладка
+                except Exception as e:
+                    print(f"[Action] Keyboard error: {e}")
+
+            # Задержка между проверками (100 мс = 10 FPS)
+            time.sleep(0.1)
 
     def _update_signal_fields(self, sig_a, sig_b, sig_c, sig_d):
         for field, text in [
@@ -319,6 +366,23 @@ class CoreController:
             self.monitoring = False
             self.agent_toggle.configure(text="Start Agent")
             self._update_signal_fields("Agent stopped", "Agent stopped", "Agent stopped", "Agent stopped")
+
+    def _evaluate_condition(self, condition: str) -> bool:
+        """Оценивает условие на основе self.game_state"""
+        # Безопасный контекст: только то, что есть в game_state
+        env = {
+            "energy": self.game_state.get("energy", 0),
+            "combo_points": self.game_state.get("combo_points", 0),
+            "in_combat": self.game_state.get("in_combat", False),
+            "player_health_pct": self.game_state.get("player_health_pct", 100),
+            "target_health_pct": self.game_state.get("target_health_pct", 100),
+            # Добавляй сюда новые переменные по мере расширения game_state
+        }
+        try:
+            return eval(condition, {"__builtins__": {}}, env)
+        except Exception as e:
+            print(f"⚠️ Condition error: {condition} → {e}")
+            return False
 
     def _agent_loop(self):
         try:
@@ -371,11 +435,12 @@ class CoreController:
 
                     # Обновляем конфиги ресурсов при смене спека
                     if spec_id != self._last_spec_id:
-                        self._last_spec_id = spec_id
                         if spec_id:
-                            self._load_resource_configs(spec_id)
+                            self._load_spec_config(spec_id)
                         else:
                             self._resource_configs = []
+                            self.current_profile = None
+                            self.current_hotkeys = None
 
                     # Signal D: ресурсы
                     self.game_state = {"in_combat": new_combat}
@@ -390,6 +455,12 @@ class CoreController:
                         except Exception as e:
                             print(f"⚠️ Resource error: {e}")
                     sig_d = ", ".join(resource_texts) if resource_texts else "Signal D: N/A"
+
+                    # Отладка: вывод текущего состояния
+                    if new_combat:
+                        state_str = ", ".join(f"{k}={v:.1f}" if isinstance(v, float) else f"{k}={v}"
+                                              for k, v in self.game_state.items())
+                        print(f"📊 State: {state_str}")
 
                     # Управление боем
                     if new_combat and not combat_state:
