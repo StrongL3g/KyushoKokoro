@@ -12,7 +12,7 @@
   "255": ["focus", "player_health", "target_health"],
 
   "259": ["energy", "combo_points", "player_health", "target_health"],
-  "260": ["energy", "combo_points", "player_health", "target_health"],
+  "260": ["energy", "combo_points","player_health", "target_health"],
   "261": ["energy", "combo_points", "player_health", "target_health"],
 
   "256": ["mana", "atonement_count", "player_health", "target_health"],

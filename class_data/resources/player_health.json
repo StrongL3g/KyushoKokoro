@@ -2,15 +2,11 @@
   "name": "Player Health",
   "type": "horizontal_bar",
   "max_value": 100,
-  "is_percentage": true,
   "default_region": {
-    "x": 200,
-    "y": 500,
-    "width": 180,
+    "x": 852,
+    "y": 1040,
+    "width": 144,
     "height": 8
   },
-  "foreground_color": [0, 255, 0],
-  "background_color": [50, 50, 50],
-  "tolerance": 35,
   "variable_name": "player_health_pct"
 }

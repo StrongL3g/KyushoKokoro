@@ -33,37 +33,58 @@ class ResourceDetector:
         y0 = self.rect[1] + region["y"]
         width = region["width"]
         height = region["height"]
-        fg = cfg["foreground_color"]
-        tol = cfg.get("tolerance", 30)
         max_val = cfg["max_value"]
 
         y_center = y0 + height // 2
-        fill = 0
+
+        # Собираем яркость (luminance) каждого пикселя
+        brightness = []
         for dx in range(width):
             try:
                 px = self.screen.getpixel((x0 + dx, y_center))
-                if all(abs(px[i] - fg[i]) <= tol for i in range(3)):
-                    fill = dx + 1
+                # Яркость по формуле Rec. 709
+                lum = 0.2126 * px[0] + 0.7152 * px[1] + 0.0722 * px[2]
+                brightness.append(lum)
             except:
-                break
-        return (fill / width) * max_val
+                brightness.append(0)
+
+        if not brightness:
+            return 0.0
+
+        # Находим наибольший спад яркости (от заполнения к фону)
+        max_drop = 0
+        drop_index = 0
+        for i in range(1, len(brightness)):
+            drop = brightness[i - 1] - brightness[i]
+            if drop > max_drop:
+                max_drop = drop
+                drop_index = i
+
+        # Если спад слишком слабый — возможно, полоска заполнена полностью
+        if max_drop < 20:  # порог можно настроить
+            fill = width
+        else:
+            fill = drop_index
+
+        ratio = fill / width
+        return ratio * max_val
 
     def _read_icon_counter(self):
-        cfg = self.config
-        active_color = cfg["active_color"]
-        tol = cfg["tolerance"]
         count = 0
-        for pos in cfg["icon_positions"]:
+        print("🔍 Combo points brightness:")
+        for i, pos in enumerate(self.config["icon_positions"]):
             x = self.rect[0] + pos[0]
             y = self.rect[1] + pos[1]
             try:
                 px = self.screen.getpixel((x, y))
-                if all(abs(px[i] - active_color[i]) <= tol for i in range(3)):
+                lum = 0.2126 * px[0] + 0.7152 * px[1] + 0.0722 * px[2]
+                status = "✅ active" if lum > 60 else "⚫ inactive"
+                #print(f"  Icon {i + 1}: {lum:.1f} → {status}")
+                if lum > 60:
                     count += 1
-            except:
-                continue
+            except Exception as e:
+                print(f"  Icon {i + 1}: ERROR {e}")
         return float(count)
-
 
 # === SpecDetector ===
 class SpecDetector:
@@ -131,7 +152,7 @@ class CoreController:
         self._load_config()
 
         self.root.title("Core Controller")
-        self.root.geometry("420x240")
+        self.root.geometry("620x240")
         self.root.resizable(False, False)
 
         self.monitoring = False
@@ -155,7 +176,7 @@ class CoreController:
         self.signal_b_field.pack(pady=1)
         self.signal_c_field = ctk.CTkEntry(root, width=380, state="readonly")
         self.signal_c_field.pack(pady=1)
-        self.signal_d_field = ctk.CTkEntry(root, width=380, state="readonly")
+        self.signal_d_field = ctk.CTkEntry(root, width=480, state="readonly")
         self.signal_d_field.pack(pady=1)
 
         self._update_signal_fields("Agent idle", "Agent idle", "No spec", "No resources")
@@ -309,6 +330,12 @@ class CoreController:
 
             win = target_windows[0]
             x0, y0, x1, y1 = win.left, win.top, win.left + win.width, win.top + win.height
+
+            # Внутри _agent_loop, после win = target_windows[0]
+            print(f"✅ WoW window: left={win.left}, top={win.top}, width={win.width}, height={win.height}")
+
+            screen = ImageGrab.grab(bbox=(x0, y0, x1, y1))
+            screen.save("wow_window.png")  # ← сохранит именно окно WoW
 
             if win.width < 1 or win.height < 1:
                 self._safe_update("Invalid window", "Invalid", "Invalid", "Invalid")
