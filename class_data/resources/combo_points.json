@@ -1,0 +1,16 @@
+{
+  "name": "Combo Points",
+  "type": "icon_counter",
+  "max_value": 6,
+  "icon_positions": [
+    [150, 550],
+    [160, 550],
+    [170, 550],
+    [180, 550],
+    [190, 550],
+    [200, 550]
+  ],
+  "active_color": [255, 215, 0],
+  "tolerance": 30,
+  "variable_name": "combo_points"
+}

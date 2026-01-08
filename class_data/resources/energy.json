@@ -1,0 +1,15 @@
+{
+  "name": "Energy",
+  "type": "horizontal_bar",
+  "max_value": 200,
+  "default_region": {
+    "x": 100,
+    "y": 600,
+    "width": 200,
+    "height": 10
+  },
+  "foreground_color": [255, 255, 0],
+  "background_color": [0, 0, 0],
+  "tolerance": 40,
+  "variable_name": "energy"
+}

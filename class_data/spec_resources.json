@@ -1,0 +1,53 @@
+{
+  "71": ["rage", "player_health", "target_health"],
+  "72": ["rage", "player_health", "target_health"],
+  "73": ["rage", "player_health", "target_health"],
+
+  "65": ["mana", "holy_power", "player_health", "target_health"],
+  "66": ["mana", "holy_power", "player_health", "target_health"],
+  "70": ["mana", "holy_power", "player_health", "target_health"],
+
+  "253": ["focus", "player_health", "target_health"],
+  "254": ["focus", "player_health", "target_health"],
+  "255": ["focus", "player_health", "target_health"],
+
+  "259": ["energy", "combo_points", "player_health", "target_health"],
+  "260": ["energy", "combo_points", "player_health", "target_health"],
+  "261": ["energy", "combo_points", "player_health", "target_health"],
+
+  "256": ["mana", "atonement_count", "player_health", "target_health"],
+  "257": ["mana", "player_health", "target_health"],
+  "258": ["insanity", "player_health", "target_health"],
+
+  "250": ["runic_power", "runic_power", "player_health"],
+  "251": ["runic_power", "runic_power", "player_health"],
+  "252": ["runic_power", "runic_power", "player_health"],
+
+  "262": ["mana", "maelstrom", "player_health", "target_health"],
+  "263": ["mana", "maelstrom", "player_health", "target_health"],
+  "264": ["mana", "maelstrom", "player_health", "target_health"],
+
+  "62": ["mana", "arcane_charges", "player_health", "target_health"],
+  "63": ["mana", "player_health", "target_health"],
+  "64": ["mana", "player_health", "target_health"],
+
+  "265": ["mana", "soul_shards", "player_health", "target_health"],
+  "266": ["mana", "soul_shards", "player_health", "target_health"],
+  "267": ["mana", "soul_shards", "player_health", "target_health"],
+
+  "268": ["energy", "stagger_amount", "player_health", "target_health"],
+  "269": ["mana", "player_health", "target_health"],
+  "270": ["energy", "chi", "player_health", "target_health"],
+
+  "102": ["mana", "astral_power", "player_health", "target_health"],
+  "103": ["energy", "combo_points", "player_health", "target_health"],
+  "104": ["rage", "player_health", "target_health"],
+  "105": ["mana", "player_health", "target_health"],
+
+  "577": ["fury", "player_health", "target_health"],
+  "581": ["fury", "player_health", "target_health"],
+
+  "578": ["mana", "essence", "player_health", "target_health"],
+  "579": ["mana", "essence", "player_health", "target_health"],
+  "580": ["mana", "essence", "player_health", "target_health"]
+}
