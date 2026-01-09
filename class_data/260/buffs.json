@@ -1,0 +1,13 @@
+{
+  "adrenaline_rush": {
+    "name": "Adrenaline Rush",
+    "type": "binary",
+    "detection": {
+      "x": 1233,
+      "y": 964,
+      "width": 43,
+      "height": 43,
+      "threshold": 60
+    }
+  }
+}

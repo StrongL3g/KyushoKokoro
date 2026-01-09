@@ -8,5 +8,5 @@
     "width": 144,
     "height": 8
   },
-  "variable_name": "player_target_pct"
+  "variable_name": "target_health_pct"
 }

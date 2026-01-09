@@ -2,6 +2,10 @@
   "spec_id": 260,
   "rotation": [
     {
+      "spell": "adrenaline_rush",
+      "condition": "not buff_adrenaline_rush_up"
+    },
+    {
       "spell": "sinister_strike",
       "condition": "combo_points < 5 and energy >= 45"
     },
