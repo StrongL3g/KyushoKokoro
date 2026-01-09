@@ -34,29 +34,43 @@ class Player:
             except Exception as e:
                 print(f"⚠️ Player resource error: {e}")
 
-        # Обновление баффов
-            if buff_configs:
-                from vision.detectors import BuffDetector
-                for buff_name, cfg in buff_configs.items():
-                    try:
-                        detector = BuffDetector(cfg, screen, wow_rect)
-                        is_active = detector.read()  # возвращает True/False
-                        self.buffs[buff_name] = {"up": is_active, "remains": None}
+        # Обновление баффов (НОВЫЙ КОД)
+        print(f"📊 Загружено баффов: {len(buff_configs)}")  # Временная отладка
+        if buff_configs:
+            from vision.detectors import BuffDetector
+            for buff_name, cfg in buff_configs.items():
+                try:
+                    detector = BuffDetector(cfg, screen, wow_rect)
+                    result = detector.read()  # Возвращает BuffResult
 
-                    except Exception as e:
-                        print(f"⚠️ Buff '{buff_name}' error: {e}")
+                    self.buffs[buff_name] = {
+                        "up": result.up,
+                        "remains": result.remains
+                    }
+
+                except Exception as e:
+                    print(f"⚠️ Buff '{buff_name}' error: {e}")
+                    self.buffs[buff_name] = {"up": False, "remains": None}
 
     def get_state_for_evaluation(self):
         """
         Возвращает словарь для использования в условиях ротации.
-        Пример: {"energy": 142, "combo_points": 3, "in_combat": True}
         """
         state = {
             "in_combat": self.in_combat,
             **self.resources
         }
-        # Добавляем бафы в формате buff_X_up
+
+        # Добавляем бафы в формате buff_X_up и buff_X_remains
         for buff_name, data in self.buffs.items():
-            state[f"buff_{buff_name}_up"] = data["up"]
-            # Позже: state[f"buff_{buff_name}_remains"] = data["remains"]
+            # Убираем точки из имени если есть (adrenaline.rush -> adrenaline_rush)
+            safe_name = buff_name.replace('.', '_')
+            state[f"buff_{safe_name}_up"] = data["up"]
+
+            if data.get("remains") is not None:
+                state[f"buff_{safe_name}_remains"] = data["remains"]
+
+            if data.get("progress") is not None:
+                state[f"buff_{safe_name}_progress"] = data["progress"]
+
         return state
