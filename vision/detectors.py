@@ -2,7 +2,10 @@
 
 import json
 import os
-from PIL import Image
+from PIL import ImageDraw
+from dataclasses import dataclass
+from typing import Optional, Tuple, Dict
+
 
 # === ResourceDetector ===
 class ResourceDetector:
@@ -133,48 +136,225 @@ class SpecDetector:
         return None, "Unknown spec"
 
 # === BuffDetector ===
+@dataclass
+class BuffResult:
+    """Результат детекции баффа"""
+    up: bool
+    remains: Optional[float] = None  # секунды
+    progress: Optional[float] = None  # 0.0-1.0
+
 class BuffDetector:
     """
-    Детектор активности баффа по яркости иконки.
-    Поддерживает бинарные (есть/нет) и таймерные (осталось X сек) бафы.
+    Финальный детектор баффов с прогресс-баром
+    Оптимизирован для скорости (работа в цикле 100мс)
     """
-    def __init__(self, buff_config, screen, wow_window_rect):
+
+    # Пороги
+    BLACK_THRESHOLD = 30
+    PROGRESS_BAR_THRESHOLD = 50
+
+    def __init__(self, buff_config: Dict, screen, wow_window_rect: Tuple[int, int, int, int]):
         self.config = buff_config
         self.screen = screen
         self.rect = wow_window_rect
+        self.name = buff_config.get("name", "unknown")
+        self.type = buff_config.get("type", "binary")
+        self.debug = buff_config.get("debug", False)
 
-    def read(self):
+        # Предвычисленные координаты для скорости
+        self._setup_coordinates()
+
+    def _setup_coordinates(self):
+        """Предвычисляем координаты для скорости"""
         detection = self.config["detection"]
-        x0 = self.rect[0] + detection["x"]
-        y0 = self.rect[1] + detection["y"]
-        width = detection.get("width", 36)
-        height = detection.get("height", 36)
-        threshold = detection["threshold"]
+        self.icon_x = self.rect[0] + detection["x"]
+        self.icon_y = self.rect[1] + detection["y"]
+        self.icon_w = detection.get("width", 20)
+        self.icon_h = detection.get("height", 20)
 
-        # === ОТЛАДКА: сохраняем область баффа ===
+        # Точки для проверки крестом (9 точек)
+        w, h = self.icon_w, self.icon_h
+        self.check_points = [
+            (w // 2, h // 2),  # Центр
+            (0, h // 2),  # Слева
+            (w - 1, h // 2),  # Справа
+            (w // 2, 0),  # Сверху
+            (w // 2, h - 1),  # Снизу
+            (0, 0),  # Левый верх
+            (w - 1, 0),  # Правый верх
+            (0, h - 1),  # Левый низ
+            (w - 1, h - 1)  # Правый низ
+        ]
+
+        # Координаты прогресс-бара если есть
+        if self.type == "timed" and "timer" in self.config:
+            timer = self.config["timer"]
+            self.bar_x = self.rect[0] + timer["x"]
+            self.bar_y = self.rect[1] + timer["y"]
+            self.bar_w = timer["width"]
+            self.bar_h = timer["height"]
+            self.max_time = timer.get("max_time", 20)
+            self.direction = timer.get("direction", "right_to_left")
+            self.has_bar = True
+        else:
+            self.has_bar = False
+
+    def read(self) -> BuffResult:
+        """Основной метод - оптимизирован для скорости"""
         try:
-            debug_img = self.screen.crop((x0, y0, x0 + width, y0 + height))
-            buff_name = self.config.get("name", "unknown_buff")
-            debug_img.save(f"debug_buff_{buff_name.replace(' ', '_')}.png")
-            print(f"📸 Saved debug image for '{buff_name}'")
-        except Exception as e:
-            print(f"⚠️ Failed to save debug image: {e}")
-        # ======================================
+            # 1. Быстрая проверка активности
+            if not self._is_buff_active_fast():
+                return BuffResult(up=False)
 
-        total_lum = 0
-        count = 0
-        for dx in range(width):
-            for dy in range(height):
+            # 2. Если binary-бафф - возвращаем просто активен
+            if self.type == "binary" or not self.has_bar:
+                return BuffResult(up=True)
+
+            # 3. Читаем прогресс-бар
+            progress = self._read_progress_bar_fast()
+
+            if progress is None:
+                return BuffResult(up=True)  # Бафф есть, но время не определено
+
+            # 4. Вычисляем оставшееся время
+            remains = progress * self.max_time
+
+            if self.debug:
+                print(f"✅ {self.name}: {remains:.1f}с ({progress:.0%})")
+
+            return BuffResult(up=True, remains=remains, progress=progress)
+
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ {self.name}: {e}")
+            return BuffResult(up=False)
+
+    def _is_buff_active_fast(self) -> bool:
+        """Сверхбыстрая проверка активности"""
+        for dx, dy in self.check_points:
+            try:
+                px = self.screen.getpixel((self.icon_x + dx, self.icon_y + dy))
+                if len(px) == 4:
+                    r, g, b, _ = px
+                else:
+                    r, g, b = px
+
+                if r > self.BLACK_THRESHOLD or g > self.BLACK_THRESHOLD or b > self.BLACK_THRESHOLD:
+                    return True
+
+            except Exception:
+                continue
+
+        return False
+
+    def _read_progress_bar_fast(self) -> Optional[float]:
+        """Быстрое чтение прогресс-бара"""
+        # Проверяем только среднюю линию
+        y = self.bar_y + self.bar_h // 2
+
+        # Для скорости проверяем не все пиксели, а с шагом
+        step = 2 if self.bar_w > 30 else 1
+        filled = 0
+        checked = 0
+
+        if self.direction == "right_to_left":
+            # Идем слева направо
+            for x in range(0, self.bar_w, step):
                 try:
-                    px = self.screen.getpixel((x0 + dx, y0 + dy))
-                    lum = 0.2126 * px[0] + 0.7152 * px[1] + 0.0722 * px[2]
-                    total_lum += lum
-                    count += 1
-                except:
+                    px = self.screen.getpixel((self.bar_x + x, y))
+                    if len(px) == 4:
+                        r, g, b, _ = px
+                    else:
+                        r, g, b = px
+
+                    brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                    if brightness > self.PROGRESS_BAR_THRESHOLD:
+                        filled += 1
+                    checked += 1
+
+                except Exception:
                     continue
 
-        avg_lum = total_lum / count if count > 0 else 0
-        is_active = avg_lum > threshold
-        print(f"🔍 Buff '{buff_name}': avg_lum={avg_lum:.1f}, threshold={threshold}, active={is_active}")
-        return is_active
+            if checked == 0:
+                return None
 
+            progress = filled / checked
+            return 1.0 - progress  # Инвертируем для right_to_left
+
+        else:  # left_to_right
+            # Идем справа налево
+            for x in range(self.bar_w - 1, -1, -step):
+                try:
+                    px = self.screen.getpixel((self.bar_x + x, y))
+                    if len(px) == 4:
+                        r, g, b, _ = px
+                    else:
+                        r, g, b = px
+
+                    brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                    if brightness > self.PROGRESS_BAR_THRESHOLD:
+                        filled += 1
+                    checked += 1
+
+                except Exception:
+                    continue
+
+            if checked == 0:
+                return None
+
+            return filled / checked
+
+    def _read_progress_bar_accurate(self) -> Optional[float]:
+        """Точное чтение прогресс-бара (для отладки)"""
+        y = self.bar_y + self.bar_h // 2
+
+        # Находим границу методом бинарного поиска
+        if self.direction == "right_to_left":
+            # Ищем последний заполненный пиксель слева направо
+            last_filled = -1
+            for x in range(self.bar_w):
+                try:
+                    px = self.screen.getpixel((self.bar_x + x, y))
+                    if len(px) == 4:
+                        r, g, b, _ = px
+                    else:
+                        r, g, b = px
+
+                    brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                    if brightness > self.PROGRESS_BAR_THRESHOLD:
+                        last_filled = x
+                except Exception:
+                    continue
+
+            if last_filled == -1:
+                return 0.0  # Полностью пусто
+            elif last_filled == self.bar_w - 1:
+                return 1.0  # Полностью заполнено
+
+            progress = (last_filled + 1) / self.bar_w
+            return 1.0 - progress
+
+        else:  # left_to_right
+            # Ищем первый заполненный пиксель справа налево
+            first_filled = self.bar_w
+            for x in range(self.bar_w - 1, -1, -1):
+                try:
+                    px = self.screen.getpixel((self.bar_x + x, y))
+                    if len(px) == 4:
+                        r, g, b, _ = px
+                    else:
+                        r, g, b = px
+
+                    brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                    if brightness > self.PROGRESS_BAR_THRESHOLD:
+                        first_filled = x
+                except Exception:
+                    continue
+
+            if first_filled == self.bar_w:
+                return 0.0  # Полностью пусто
+            elif first_filled == 0:
+                return 1.0  # Полностью заполнено
+
+            progress = (self.bar_w - first_filled) / self.bar_w
+            return progress
