@@ -1,0 +1,7 @@
+## Interface: 11508, 11507, 20505, 30405, 38000, 40402, 50503, 50502, 110205, 110207, 120000
+## Title: KyushoKokoro
+## Notes: DimMak_v3_0
+## Author: StrongLeg
+## Version: 1.0.0
+
+KyushoKokoro.lua

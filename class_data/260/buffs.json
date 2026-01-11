@@ -17,7 +17,7 @@
       "max_time": 18,
       "direction": "left_to_right"
     },
-    "debug": true
+    "debug": false
   },
     "blade_flurry": {
     "name": "Blade Flurry",
