@@ -37,6 +37,6 @@
       "max_time": 13,
       "direction": "left_to_right"
     },
-    "debug": true
+    "debug": false
   }
 }

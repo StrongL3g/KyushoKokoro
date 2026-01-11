@@ -11,10 +11,20 @@ from pynput import keyboard
 from pynput.keyboard import Key, Controller as KeyboardController
 
 # Импорты модулей
-from vision.detectors import SpecDetector, ResourceDetector
+from vision.detectors import SpecDetector
 from game.player import Player
 from game.target import Target
 from rotation.engine import RotationEngine
+
+from config.paths import SPEC_COLORS_PATH, SPEC_NAMES_PATH
+
+def _load_json_file(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"⚠️ Failed to load {path}: {e}")
+        return {}
 
 # === CoreController ===
 class CoreController:
@@ -31,7 +41,9 @@ class CoreController:
         self.monitor_thread = None
 
         # Инициализация
-        self.spec_detector = SpecDetector()
+        spec_colors = _load_json_file(SPEC_COLORS_PATH)
+        spec_names = _load_json_file(SPEC_NAMES_PATH)
+        self.spec_detector = SpecDetector(spec_colors, spec_names)
         self.player = Player()
         self.target = Target()
         self._last_spec_id = None
@@ -140,6 +152,14 @@ class CoreController:
     def _on_closing(self):
         self._stop_combat_action()
         self.monitoring = False
+
+        # Остановка потоков
+        if self.combat_action_thread and self.combat_action_thread.is_alive():
+            self.combat_action_thread.join(timeout=1)
+
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            self.monitor_thread.join(timeout=1)
+
         if hasattr(self, 'keyboard_listener') and self.keyboard_listener.is_alive():
             self.keyboard_listener.stop()
             self.keyboard_listener.join(timeout=1)
@@ -284,6 +304,17 @@ class CoreController:
                     if w == 0 or h == 0:
                         raise ValueError("Empty capture")
 
+                    # === ОБНОВЛЕНИЕ active_enemies — ДО всего остального ===
+                    try:
+                        payload_d = screen.getpixel((2, 0))
+                        red_value = payload_d[0] / 255.0
+                        active_enemies = min(round(red_value * 10), 10)  # ← убрал max(1,...)
+                        self.target.active_enemies = active_enemies
+                        print(f"🎯 Active enemies: {active_enemies}")  # ← ДОБАВЬ ЭТУ СТРОКУ
+                    except Exception as e:
+                        print(f"⚠️ Active enemies error: {e}")
+                        active_enemies = 0
+
                     # Signal A: готовность
                     payload_a = screen.getpixel((0, h - 1))
                     sig_a = "Signal A: window is open" if self._is_white(payload_a) else f"A: {payload_a}"
@@ -298,7 +329,7 @@ class CoreController:
                         sig_b, new_combat = f"B: {payload_b}", False
 
                     # Signal C: спек
-                    payload_c = screen.getpixel((2, 0))
+                    payload_c = screen.getpixel((1, 0))
                     spec_id, spec_name = self.spec_detector.detect(payload_c)
                     sig_c = f"Signal C: {spec_name}"
 
@@ -318,9 +349,14 @@ class CoreController:
                         screen,
                         (x0, y0, x1, y1),
                         self._player_resource_configs,
-                        self._buff_configs  # ← добавили!
+                        self._buff_configs
                     )
-                    self.target.update_from_vision(screen, (x0, y0, x1, y1), self._target_resource_configs)
+                    self.target.update_from_vision(
+                        screen,
+                        (x0, y0, x1, y1),
+                        self._target_resource_configs,
+                        active_enemies=active_enemies
+                    )
 
                     # Для GUI: объединяем ресурсы игрока и цели
                     all_resources = {}

@@ -3,7 +3,7 @@
   "rotation": [
     {
       "spell": "blade_flurry",
-      "condition": "combo_points < 5 and energy >= 45 and not buff_blade_flurry_up"
+      "condition": "not buff_blade_flurry_up and active_enemies >= 2"
     },
     {
       "spell": "sinister_strike",

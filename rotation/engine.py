@@ -14,6 +14,8 @@ class RotationEngine:
         # Объединяем состояния
         context = {**player_state, **target_state}
 
+        print(f"🔍 Rotation context: {context}")
+
         for rule in self.profile.get("rotation", []):
             spell = rule["spell"]
             condition = rule["condition"]
@@ -22,7 +24,7 @@ class RotationEngine:
         return None
 
     def _evaluate_condition(self, condition, context):
-        """Безопасная оценка условия."""
+        """Безопасная оценка условия с плоскими переменными."""
         try:
             return eval(condition, {"__builtins__": {}}, context)
         except Exception as e:

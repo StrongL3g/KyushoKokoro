@@ -4,9 +4,7 @@ class Player:
     def __init__(self, spec_id=None):
         self.spec_id = spec_id
         self.in_combat = False
-        # Ресурсы: energy, combo_points, health и т.д.
         self.resources = {}
-        # Бафы: {"ruthless_precision": True, "adrenaline_rush": 12.3}
         self.buffs = {}
         # Кулдауны (в будущем): {"vanish": 45.2}
         self.cooldowns = {}
@@ -17,9 +15,9 @@ class Player:
         :param screen: PIL.Image — скриншот окна WoW
         :param wow_rect: (x0, y0, x1, y1) — координаты окна
         :param resource_configs: list[dict] — конфиги из spec_resources.json
-        :param buff_configs: list[dict] — конфиги баффов (пока не используется)
+        :param buff_configs: list[dict] — конфиги баффов
         """
-        # Очищаем предыдущие значения (или оставляем, если нужно накапливать)
+        # Очищаем предыдущие значения
         self.resources = {}
         self.buffs = {}
 
@@ -34,43 +32,52 @@ class Player:
             except Exception as e:
                 print(f"⚠️ Player resource error: {e}")
 
-        # Обновление баффов (НОВЫЙ КОД)
-        print(f"📊 Загружено баффов: {len(buff_configs)}")  # Временная отладка
+        # Обновление баффов
+        print(f"📊 Загружено баффов: {len(buff_configs) if buff_configs else 0}")
+
         if buff_configs:
+            # Гарантируем, что все ожидаемые бафы присутствуют
+            for buff_name in buff_configs.keys():
+                self.buffs[buff_name] = {"up": False, "remains": None}
+
+            # Теперь обновляем только те, что реально активны
             from vision.detectors import BuffDetector
             for buff_name, cfg in buff_configs.items():
                 try:
                     detector = BuffDetector(cfg, screen, wow_rect)
-                    result = detector.read()  # Возвращает BuffResult
+                    result = detector.read()
 
-                    self.buffs[buff_name] = {
-                        "up": result.up,
-                        "remains": result.remains
-                    }
+                    # Используем to_dict() для конвертации BuffResult в словарь
+                    self.buffs[buff_name] = result.to_dict()
+
+                    # Отладочный вывод
+                    print(f"🔍 Бафф '{buff_name}': up={result.up}, remains={result.remains}")
 
                 except Exception as e:
                     print(f"⚠️ Buff '{buff_name}' error: {e}")
-                    self.buffs[buff_name] = {"up": False, "remains": None}
+                    # Оставляем как False (уже инициализировано выше)
+
+            # В конце update_from_vision:
+            print(f"📈 Состояние баффов после обновления:")
+            for buff_name, data in self.buffs.items():
+                print(f"  {buff_name}: up={data.get('up')}, remains={data.get('remains')}")
 
     def get_state_for_evaluation(self):
         """
         Возвращает словарь для использования в условиях ротации.
+        Бафы экспортируются как плоские переменные: buff_NAME_up, buff_NAME_remains
         """
         state = {
             "in_combat": self.in_combat,
             **self.resources
         }
 
-        # Добавляем бафы в формате buff_X_up и buff_X_remains
+        # Экспорт баффов в плоском виде: buff_adrenaline_rush_up, buff_blade_flurry_remains и т.д.
         for buff_name, data in self.buffs.items():
-            # Убираем точки из имени если есть (adrenaline.rush -> adrenaline_rush)
-            safe_name = buff_name.replace('.', '_')
+            safe_name = buff_name.replace('.', '_')  # на случай, если в имени есть точки
             state[f"buff_{safe_name}_up"] = data["up"]
-
             if data.get("remains") is not None:
                 state[f"buff_{safe_name}_remains"] = data["remains"]
-
-            if data.get("progress") is not None:
-                state[f"buff_{safe_name}_progress"] = data["progress"]
+            # progress не используем — убран
 
         return state

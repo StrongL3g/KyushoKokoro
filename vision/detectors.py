@@ -2,7 +2,6 @@
 
 import json
 import os
-from PIL import ImageDraw
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict
 
@@ -84,33 +83,15 @@ class ResourceDetector:
 
 # === SpecDetector ===
 class SpecDetector:
-    def __init__(self):
-        self.spec_colors = self._load_spec_colors()
-        self.spec_names = self._load_spec_names()
+    def __init__(self, spec_colors: dict, spec_names: dict):
+        self.spec_colors = spec_colors
+        self.spec_names = spec_names
         self.color_to_spec = {}
         for spec_id_str, rgb in self.spec_colors.items():
             r, g, b = rgb
             key = (round(r, 2), round(g, 2), round(b, 2))
             self.color_to_spec[key] = int(spec_id_str)
         self.tolerance = 0.035
-
-    def _load_spec_colors(self):
-        path = os.path.join("class_data", "spec_colors.json")
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"⚠️ Error loading spec_colors.json: {e}")
-            return {}
-
-    def _load_spec_names(self):
-        path = os.path.join("class_data", "spec_names.json")
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"⚠️ Error loading spec_names.json: {e}")
-            return {}
 
     def detect(self, pixel_rgb):
         if not pixel_rgb:
@@ -138,10 +119,11 @@ class SpecDetector:
 # === BuffDetector ===
 @dataclass
 class BuffResult:
-    """Результат детекции баффа"""
     up: bool
-    remains: Optional[float] = None  # секунды
-    progress: Optional[float] = None  # 0.0-1.0
+    remains: Optional[float] = None
+
+    def to_dict(self):
+        return {"up": self.up, "remains": self.remains}
 
 class BuffDetector:
     """
@@ -150,7 +132,7 @@ class BuffDetector:
     """
 
     # Пороги
-    BLACK_THRESHOLD = 30
+    BLACK_THRESHOLD = 10
     PROGRESS_BAR_THRESHOLD = 50
 
     def __init__(self, buff_config: Dict, screen, wow_window_rect: Tuple[int, int, int, int]):
@@ -222,7 +204,7 @@ class BuffDetector:
             if self.debug:
                 print(f"✅ {self.name}: {remains:.1f}с ({progress:.0%})")
 
-            return BuffResult(up=True, remains=remains, progress=progress)
+            return BuffResult(up=True, remains=remains)
 
         except Exception as e:
             if self.debug:
@@ -358,3 +340,4 @@ class BuffDetector:
 
             progress = (self.bar_w - first_filled) / self.bar_w
             return progress
+
