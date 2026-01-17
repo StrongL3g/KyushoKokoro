@@ -137,6 +137,18 @@ class CoreController:
             else:
                 self._buff_configs = {}
 
+            # 5. Кулдауны способностей
+            self._ability_cooldown_configs = {}
+            cooldown_path = f"class_data/{spec_id}/ability_cooldowns.json"
+            if os.path.exists(cooldown_path):
+                try:
+                    with open(cooldown_path, 'r', encoding='utf-8') as f:
+                        self._ability_cooldown_configs = json.load(f)
+                except Exception as e:
+                    print(f"⚠️ Cooldown config error for {spec_id}: {e}")
+            else:
+                self._ability_cooldown_configs = {}
+
         except Exception as e:
             print(f"⚠️ Error loading config for {spec_id}: {e}")
 
@@ -350,6 +362,12 @@ class CoreController:
                         (x0, y0, x1, y1),
                         self._player_resource_configs,
                         self._buff_configs
+                    )
+                    # Обновление кулдаунов способностей
+                    self.player.update_cooldowns_from_vision(
+                        screen,
+                        (x0, y0, x1, y1),
+                        self._ability_cooldown_configs
                     )
                     self.target.update_from_vision(
                         screen,

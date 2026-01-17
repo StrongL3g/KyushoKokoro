@@ -1,4 +1,5 @@
 # game/player.py
+from vision.cooldown_detector import is_ability_ready
 
 class Player:
     def __init__(self, spec_id=None):
@@ -80,4 +81,27 @@ class Player:
                 state[f"buff_{safe_name}_remains"] = data["remains"]
             # progress не используем — убран
 
+        # Кулдауны → cooldown_NAME_ready
+        for name, data in self.cooldowns.items():
+            safe_name = name.replace('.', '_')
+            state[f"cooldown_{safe_name}_ready"] = data["ready"]
+
         return state
+
+    def update_cooldowns_from_vision(self, screen, wow_rect, cooldown_configs):
+        """
+        Обновляет состояние кулдаунов способностей.
+        :param cooldown_configs: dict из ability_cooldowns.json
+        """
+        self.cooldowns = {}
+        x0, y0, x1, y1 = wow_rect
+        for name, cfg in cooldown_configs.items():
+            icon_x = x0 + cfg["x"]
+            icon_y = y0 + cfg["y"]
+            ready = is_ability_ready(
+                screen,
+                icon_x, icon_y,
+                cfg["width"], cfg["height"],
+                debug_name=name
+            )
+            self.cooldowns[name] = {"ready": ready}

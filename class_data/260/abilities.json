@@ -1,20 +1,18 @@
 {
   "sinister_strike": {
     "name": "Sinister Strike",
-    "type": "builder",
-    "gcd": 1.0,
-    "energy_cost": 45
+    "type": "builder"
+  },
+  "pistol_shot": {
+    "name": "Pistol Shot",
+    "type": "builder"
   },
   "adrenaline_rush": {
     "name": "Adrenaline Rush",
-    "type": "cooldown",
-    "cooldown": 120.0,
-    "duration": 20.0
+    "type": "cooldown"
   },
   "dispatch": {
     "name": "Dispatch",
-    "type": "finisher",
-    "gcd": 1.0,
-    "combo_points_cost": 5
+    "type": "finisher"
   }
 }
