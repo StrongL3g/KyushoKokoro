@@ -1,52 +1,49 @@
-def is_ability_ready(screen, x0, y0, width, height, debug_name=""):
+# vision/cooldown_detector.py
+from vision.etalon_matcher import compare_with_etalon
+
+def is_ability_ready(screen, x0, y0, width, height, etalon_image=None, debug_name=""):
     """
-    Определяет, готова ли способность по виду иконки.
-    Возвращает True — готова, False — в кулдауне.
+    Определяет, готова ли способность.
+    - Если есть эталон → сравнивает с ним.
+    - Если нет эталона → использует fallback по яркости/насыщенности.
     """
-    margin = 4
-    x_start = x0 + margin
-    x_end = x0 + width - margin
-    y_start = y0 + margin
-    y_end = y0 + height - margin
+    try:
+        current_icon = screen.crop((x0, y0, x0 + width, y0 + height)).convert("RGB")
+    except Exception as e:
+        print(f"⚠️ Crop error: {e}")
+        return True  # безопасный fallback
 
-    if x_end <= x_start or y_end <= y_start:
-        return False
+    if etalon_image is not None:
+        # Сравнение с эталоном
+        ready = compare_with_etalon(current_icon, etalon_image)
+    else:
+        # Fallback: анализ яркости/насыщенности
+        luminance_values = []
+        saturation_values = []
 
-    luminance_values = []
-    saturation_values = []
+        for x in range(current_icon.width):
+            for y in range(current_icon.height):
+                r, g, b = current_icon.getpixel((x, y))
+                lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                luminance_values.append(lum)
 
-    for x in range(x_start, x_end):
-        for y in range(y_start, y_end):
-            try:
-                px = screen.getpixel((x, y))
-                r, g, b = px[:3]
-            except:
-                continue
+                max_c = max(r, g, b)
+                min_c = min(r, g, b)
+                sat = (max_c - min_c) / max_c if max_c > 0 else 0
+                saturation_values.append(sat)
 
-            # Яркость
-            lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
-            luminance_values.append(lum)
+        if not luminance_values:
+            return True
 
-            # Насыщенность
-            max_c = max(r, g, b)
-            min_c = min(r, g, b)
-            delta = max_c - min_c
-            sat = delta / max_c if max_c > 0 else 0
-            saturation_values.append(sat)
+        avg_lum = sum(luminance_values) / len(luminance_values)
+        avg_sat = sum(saturation_values) / len(saturation_values)
 
-    if not luminance_values:
-        return False
-
-    avg_lum = sum(luminance_values) / len(luminance_values)
-    avg_sat = sum(saturation_values) / len(saturation_values)
-
-    # Пороги — настрой под свой UI!
-    LUM_THRESHOLD = 40
-    SAT_THRESHOLD = 0.15
-
-    ready = (avg_lum > LUM_THRESHOLD) and (avg_sat > SAT_THRESHOLD)
+        LUM_THRESHOLD = 80
+        SAT_THRESHOLD = 0.15
+        ready = (avg_lum > LUM_THRESHOLD) and (avg_sat > SAT_THRESHOLD)
 
     if debug_name:
-        print(f"🔍 Cooldown {debug_name}: lum={avg_lum:.1f}, sat={avg_sat:.2f} → {'✅ ready' if ready else '⏳ on CD'}")
+        status = "✅ ready" if ready else "⏳ on CD"
+        print(f"🔍 Cooldown {debug_name}: {status}")
 
     return ready

@@ -7,8 +7,8 @@ class Player:
         self.in_combat = False
         self.resources = {}
         self.buffs = {}
-        # Кулдауны (в будущем): {"vanish": 45.2}
         self.cooldowns = {}
+        self._cooldown_etalons = {}
 
     def update_from_vision(self, screen, wow_rect, resource_configs, buff_configs=None):
         """
@@ -98,10 +98,9 @@ class Player:
         for name, cfg in cooldown_configs.items():
             icon_x = x0 + cfg["x"]
             icon_y = y0 + cfg["y"]
+            etalon = self._cooldown_etalons.get(name)
             ready = is_ability_ready(
-                screen,
-                icon_x, icon_y,
-                cfg["width"], cfg["height"],
-                debug_name=name
+                screen, icon_x, icon_y, cfg["width"], cfg["height"],
+                etalon_image=etalon, debug_name=name if cfg.get("debug") else ""
             )
             self.cooldowns[name] = {"ready": ready}

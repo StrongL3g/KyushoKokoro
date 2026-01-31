@@ -3,7 +3,7 @@
   "rotation": [
     {
       "spell": "adrenaline_rush",
-      "condition": "cooldown_adrenaline_rush_ready and combo_points < 2"
+      "condition": "cooldown_adrenaline_rush_ready and not buff_adrenaline_rush_up and combo_points < 2"
     },
     {
       "spell": "blade_flurry",

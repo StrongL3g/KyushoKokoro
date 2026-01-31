@@ -88,6 +88,48 @@ class CoreController:
         self.current_profile = None
         self.current_hotkeys = None
 
+        self.save_etalon_btn = ctk.CTkButton(
+            root, text="Save Cooldown Etalons", command=self._save_cooldown_etalons,
+            width=150, height=30
+        )
+        self.save_etalon_btn.pack(pady=4)
+
+    def _save_cooldown_etalons(self):
+        if not self.monitoring:
+            print("⚠️ Start agent first!")
+            return
+
+        try:
+            # Получаем последний скриншот (или делаем новый)
+            target_windows = [w for w in gw.getWindowsWithTitle("World of Warcraft") if w.visible]
+            if not target_windows:
+                print("❌ No WoW window")
+                return
+            win = target_windows[0]
+            x0, y0, x1, y1 = win.left, win.top, win.left + win.width, win.top + win.height
+            screen = ImageGrab.grab(bbox=(x0, y0, x1, y1))
+
+            spec_id = self._last_spec_id
+            if not spec_id or not self._ability_cooldown_configs:
+                print("❌ No spec or cooldown config")
+                return
+
+            etalon_dir = f"class_data/{spec_id}/cooldowns"
+            os.makedirs(etalon_dir, exist_ok=True)
+
+            for name, cfg in self._ability_cooldown_configs.items():
+                x = x0 + cfg["x"]
+                y = y0 + cfg["y"]
+                w = cfg["width"]
+                h = cfg["height"]
+                icon = screen.crop((x, y, x + w, y + h))
+                icon.save(f"{etalon_dir}/{name}.png")
+                print(f"✅ Saved {name} etalon")
+
+            print("✨ All etalons saved!")
+        except Exception as e:
+            print(f"⚠️ Failed to save etalons: {e}")
+
     def _load_spec_config(self, spec_id):
 
         """Загружает ВСЁ для данного спека: ресурсы, профиль, хоткеи"""
@@ -148,6 +190,15 @@ class CoreController:
                     print(f"⚠️ Cooldown config error for {spec_id}: {e}")
             else:
                 self._ability_cooldown_configs = {}
+
+            # 6. Загрузка эталонов кулдаунов (теперь _ability_cooldown_configs доступен)
+            self._cooldown_etalons = {}
+            etalon_dir = f"class_data/{spec_id}/cooldowns"
+            if os.path.exists(etalon_dir):
+                for name in self._ability_cooldown_configs.keys():
+                    path = f"{etalon_dir}/{name}.png"
+                    if os.path.exists(path):
+                        self._cooldown_etalons[name] = Image.open(path).convert("RGB")
 
         except Exception as e:
             print(f"⚠️ Error loading config for {spec_id}: {e}")
