@@ -16,6 +16,8 @@ from game.player import Player
 from game.target import Target
 from rotation.engine import RotationEngine
 from gui.calibrator import ProfileCalibrator
+from gui.simc_importer import SimcImportWindow
+from gui.spell_editor import SpellEditorWindow
 
 from config.paths import SPEC_COLORS_PATH, SPEC_NAMES_PATH
 
@@ -35,7 +37,7 @@ class CoreController:
         self._load_config()
 
         self.root.title("Core Controller")
-        self.root.geometry("620x240")
+        self.root.geometry("620x440")
         self.root.resizable(False, False)
 
         self.monitoring = False
@@ -101,10 +103,44 @@ class CoreController:
         )
         self.calibrator_btn.pack(pady=4)
 
+        self.import_simc_btn = ctk.CTkButton(
+            root, text="Импорт SimC / Raidbots", command=self._open_simc_importer,
+            width=150, height=30, fg_color="blue"
+        )
+        self.import_simc_btn.pack(pady=4)
+
+        # Кнопка открытия редактора хоткеев и спеллов
+        self.spell_editor_btn = ctk.CTkButton(
+            root, text="⌨️ Редактор хоткеев и спеллов", command=self._open_spell_editor,
+            width=180, height=30, fg_color="#059669", hover_color="#047857"  # Зеленый оттенок
+        )
+        self.spell_editor_btn.pack(pady=4)
+
+    def _open_spell_editor(self):
+        """Открывает окно управления хоткеями и способностями"""
+        # Пытаемся определить текущий спек в игре (или берем последний известный, например 260)
+        current_spec = getattr(self, "_last_spec_id", 260) if getattr(self, "_last_spec_id", None) else 260
+
+        # Запускаем модальное окно редактора
+        SpellEditorWindow(parent=self.root, current_spec_id=current_spec)
+
+    def _open_simc_importer(self):
+        """Открывает окно импорта SimulationCraft"""
+        # Берем текущий ID специализации (по умолчанию 260, если еще не определили)
+        current_spec = self._last_spec_id if self._last_spec_id else 260
+
+        # Открываем окно. Передаем callback, чтобы при успехе сразу обновить данные в памяти!
+        SimcImportWindow(
+            parent=self.root,
+            spec_id=current_spec,
+            on_success_callback=lambda: print("🔄 База спеллов успешно обновлена!")
+        )
+
     def _open_calibrator(self):
-        # Открывает окно калибратора
-        calibrator_win = ProfileCalibrator(self.root, profile_name="my_pc.json")
-        calibrator_win.grab_set()  # Делает окно активным
+        """Открывает интерактивный калибратор зон"""
+        current_spec = getattr(self, "_last_spec_id", 260) if getattr(self, "_last_spec_id", None) else 260
+        # Запускаем калибратор. Он сам создаст и загрузит папку ui_profiles для этого спека!
+        ProfileCalibrator(self.root, spec_id=current_spec, profile_name="default_pc.json")
 
     def _save_cooldown_etalons(self):
         if not self.monitoring:
