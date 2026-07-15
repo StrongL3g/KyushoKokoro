@@ -15,6 +15,7 @@ from vision.detectors import SpecDetector
 from game.player import Player
 from game.target import Target
 from rotation.engine import RotationEngine
+from gui.calibrator import ProfileCalibrator
 
 from config.paths import SPEC_COLORS_PATH, SPEC_NAMES_PATH
 
@@ -93,6 +94,17 @@ class CoreController:
             width=150, height=30
         )
         self.save_etalon_btn.pack(pady=4)
+
+        self.calibrator_btn = ctk.CTkButton(
+            root, text="Open Calibrator", command=self._open_calibrator,
+            width=150, height=30, fg_color="blue"
+        )
+        self.calibrator_btn.pack(pady=4)
+
+    def _open_calibrator(self):
+        # Открывает окно калибратора
+        calibrator_win = ProfileCalibrator(self.root, profile_name="my_pc.json")
+        calibrator_win.grab_set()  # Делает окно активным
 
     def _save_cooldown_etalons(self):
         if not self.monitoring:
