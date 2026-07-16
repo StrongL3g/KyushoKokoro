@@ -3,7 +3,7 @@
 import customtkinter as ctk
 import threading
 import time
-from PIL import ImageGrab
+from PIL import Image, ImageGrab
 import pygetwindow as gw
 import json
 import os

@@ -2,12 +2,16 @@
   "spec_id": 260,
   "rotation": [
     {
-      "spell": "sinister_strike",
-      "condition": "combo_points < 5 and energy >= 45"
+    "spell": "slice_and_dice",
+    "condition": "combo_points >= 2 and not buff_slice_and_dice_up"
     },
     {
       "spell": "dispatch",
       "condition": "combo_points >= 5 and energy >= 27"
+    },
+    {
+      "spell": "sinister_strike",
+      "condition": "combo_points < 5 and energy >= 45"
     }
   ]
 }

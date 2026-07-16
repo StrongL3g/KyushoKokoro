@@ -48,7 +48,17 @@ class Player:
 
     def get_state_for_evaluation(self):
         state = {"in_combat": self.in_combat, **self.resources}
-        for buff_name, data in self.buffs.items(): state[f"{buff_name.replace('.', '_')}_up"] = data["up"]
-        for name, data in self.cooldowns.items(): state[f"cooldown_{name.replace('.', '_')}_ready"] = data["ready"]
-        for name, data in self.spells.items(): state[f"spell_{name.replace('.', '_')}_ready"] = data["ready"]
+
+        # 👑 ЭКСПОРТ БАФФОВ: Теперь у тебя есть _up (True/False) и _remains (0.0 - 1.0)
+        for buff_name, data in self.buffs.items():
+            safe_name = buff_name.replace('.', '_')
+            state[f"{safe_name}_up"] = data["up"]
+            state[f"{safe_name}_remains"] = data["remains"]
+
+        for name, data in self.cooldowns.items():
+            state[f"cooldown_{name.replace('.', '_')}_ready"] = data["ready"]
+
+        for name, data in self.spells.items():
+            state[f"spell_{name.replace('.', '_')}_ready"] = data["ready"]
+
         return state

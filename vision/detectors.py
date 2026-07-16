@@ -14,6 +14,7 @@ class ResourceDetector:
             self.config = zone_config
 
         self.screen = screen
+        self.rect = wow_window_rect  # (x0, y0, x1, y1) окна игры
 
     def read(self):
         rtype = self.config.get("type")
@@ -26,13 +27,18 @@ class ResourceDetector:
     def _read_horizontal_bar(self):
         coords = self.config.get("coords", [0, 0, 10, 10])
         x0, y0, width, height = coords
+
+        # Смещаем координаты относительно окна игры
+        real_x = self.rect[0] + x0
+        real_y = self.rect[1] + y0
+
         max_val = float(self.config.get("max_value", 100.0))
 
-        y_center = y0 + height // 2
+        y_center = real_y + height // 2
         brightness = []
         for dx in range(width):
             try:
-                px = self.screen.getpixel((x0 + dx, y_center))
+                px = self.screen.getpixel((real_x + dx, y_center))
                 lum = 0.2126 * px[0] + 0.7152 * px[1] + 0.0722 * px[2]
                 brightness.append(lum)
             except:
@@ -55,10 +61,12 @@ class ResourceDetector:
         count = 0
         positions = self.config.get("positions", [])
         for pos in positions:
-            x, y = pos[0], pos[1]
+            # Смещаем координаты относительно окна игры
+            real_x = self.rect[0] + pos[0]
+            real_y = self.rect[1] + pos[1]
             try:
-                px = self.screen.getpixel((x, y))
-                # 💡 ИСПРАВЛЕНО ДЛЯ КОМБО-ПОИНТОВ: Ищем любой яркий канал (Красный, Зеленый или Синий)
+                px = self.screen.getpixel((real_x, real_y))
+                # Ищем любой яркий канал (Красный, Зеленый или Синий)
                 if max(px[:3]) > 75:
                     count += 1
             except Exception:
@@ -95,37 +103,50 @@ class SpecDetector:
 @dataclass
 class BuffResult:
     up: bool
+    remains: float = 0.0  # Процент заполнения (от 0.0 до 1.0)
 
-    def to_dict(self): return {"up": self.up}
+    def to_dict(self):
+        return {"up": self.up, "remains": self.remains}
 
 
 class BuffDetector:
-    BLACK_THRESHOLD = 15
+    # Подняли порог, чтобы игнорировать темно-серые рамки интерфейса
+    NOISE_THRESHOLD = 40
 
     def __init__(self, zone_name: str, zone_coords: list, screen, wow_window_rect):
         self.name = zone_name
         self.screen = screen
-        self.icon_x, self.icon_y, self.icon_w, self.icon_h = zone_coords
 
-        w, h = self.icon_w, self.icon_h
-        self.check_points = [
-            (w // 2, h // 2), (0, h // 2), (w - 1, h // 2),
-            (w // 2, 0), (w // 2, h - 1), (0, 0), (w - 1, 0),
-            (0, h - 1), (w - 1, h - 1)
-        ]
+        # zone_coords это массив [x, y, w, h] из нашего профиля Калибратора
+        # Обязательно смещаем относительно окна игры
+        self.x0 = wow_window_rect[0] + zone_coords[0]
+        self.y0 = wow_window_rect[1] + zone_coords[1]
+        self.width = zone_coords[2]
+        self.height = zone_coords[3]
 
     def read(self) -> BuffResult:
         try:
-            return BuffResult(up=self._is_buff_active_fast())
-        except Exception:
-            return BuffResult(up=False)
+            # Сканируем только горизонтальную линию строго по центру (игнорируем верх/низ рамки)
+            y_center = self.y0 + self.height // 2
 
-    def _is_buff_active_fast(self) -> bool:
-        for dx, dy in self.check_points:
-            try:
-                px = self.screen.getpixel((self.icon_x + dx, self.icon_y + dy))
-                if max(px[:3]) > self.BLACK_THRESHOLD:
-                    return True
-            except Exception:
-                continue
-        return False
+            filled_pixels = 0
+            for dx in range(self.width):
+                try:
+                    px = self.screen.getpixel((self.x0 + dx, y_center))
+                    # Берем самый яркий канал пикселя
+                    if max(px[:3]) > self.NOISE_THRESHOLD:
+                        filled_pixels += 1
+                except Exception:
+                    continue
+
+            # Защита от мусора: считаем бафф активным, если заполнено хотя бы 2-3 пикселя
+            is_up = filled_pixels >= max(2, int(self.width * 0.02))
+
+            # Высчитываем процент оставшегося времени
+            progress = filled_pixels / self.width if self.width > 0 else 0.0
+
+            return BuffResult(up=is_up, remains=round(progress, 3))
+
+        except Exception as e:
+            print(f"⚠️ Ошибка чтения баффа {self.name}: {e}")
+            return BuffResult(up=False, remains=0.0)
