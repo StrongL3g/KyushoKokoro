@@ -9,6 +9,7 @@ import json
 import os
 from pynput import keyboard
 from pynput.keyboard import Key, Controller as KeyboardController
+import random
 
 # Импорты модулей
 from vision.detectors import SpecDetector
@@ -322,11 +323,8 @@ class CoreController:
 
     def _rotation_action_loop(self):
         while self.combat_action_active and self.monitoring:
-            if any(self.modifiers_pressed.values()):
-                time.sleep(0.01)
-                continue
-            if not self.current_profile or not self.current_hotkeys:
-                time.sleep(0.1)
+            if any(self.modifiers_pressed.values()) or not self.current_profile or not self.current_hotkeys:
+                time.sleep(0.05)
                 continue
 
             engine = RotationEngine(self.current_profile)
@@ -339,11 +337,19 @@ class CoreController:
                 if action_key:
                     try:
                         self.keyboard.press(action_key)
+                        # Микро-задержка между нажатием и отпусканием клавиши (10-25 мс, как у механики пальца)
+                        time.sleep(random.uniform(0.010, 0.025))
                         self.keyboard.release(action_key)
                         print(f"✅ Pressed: {action_key} ({spell})")
+
+                        # После успешного нажатия ждем чуть дольше (например, 80-150 мс), чтобы игра успела среагировать
+                        time.sleep(random.uniform(0.080, 0.150))
+                        continue
                     except Exception as e:
                         print(f"[Action] Keyboard error: {e}")
-            time.sleep(0.1)
+
+            # 👑 РАНДОМНЫЙ СПАМ-ИНТЕРВАЛ В ПОИСКАХ КОМАНДЫ (35–70 мс)
+            time.sleep(random.uniform(0.035, 0.070))
 
     def _update_signal_fields(self, sig_a, sig_b, sig_c, sig_d):
         for field, text in [(self.signal_a_field, sig_a), (self.signal_b_field, sig_b),
