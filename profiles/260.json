@@ -2,14 +2,6 @@
   "spec_id": 260,
   "rotation": [
     {
-      "spell": "adrenaline_rush",
-      "condition": "cooldown_adrenaline_rush_ready and not buff_adrenaline_rush_up and combo_points < 2"
-    },
-    {
-      "spell": "blade_flurry",
-      "condition": "cooldown_blade_flurry_ready and not buff_blade_flurry_up and active_enemies >= 2"
-    },
-    {
       "spell": "sinister_strike",
       "condition": "combo_points < 5 and energy >= 45"
     },
