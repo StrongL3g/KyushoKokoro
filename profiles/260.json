@@ -6,6 +6,10 @@
     "condition": "combo_points >= 2 and not buff_slice_and_dice_up"
     },
     {
+    "spell": "roll_the_bones",
+    "condition": "energy >= 25 and (not buff_roll_the_bones_up or buff_roll_the_bones_level < 3)"
+    },
+    {
       "spell": "dispatch",
       "condition": "combo_points >= 5 and energy >= 27"
     },

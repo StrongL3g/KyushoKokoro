@@ -10,6 +10,7 @@ import os
 from pynput import keyboard
 from pynput.keyboard import Key, Controller as KeyboardController
 import random
+import mss  # 👑 Сверхбыстрый захват экрана
 
 # Импорты модулей
 from vision.detectors import SpecDetector
@@ -19,6 +20,7 @@ from rotation.engine import RotationEngine
 from gui.calibrator import ProfileCalibrator
 from gui.simc_importer import SimcImportWindow
 from gui.spell_editor import SpellEditorWindow
+from gui.buff_trainer import BuffTrainerWindow
 
 from config.paths import SPEC_COLORS_PATH, SPEC_NAMES_PATH
 
@@ -40,7 +42,7 @@ class CoreController:
         self._load_config()
 
         self.root.title("KyushoKokoro - Core Controller")
-        self.root.geometry("620x470")  # Немного увеличили окно для панели профилей
+        self.root.geometry("620x470")  # Увеличили окно для панели профилей и FPS
         self.root.resizable(False, False)
 
         self.monitoring = False
@@ -57,7 +59,7 @@ class CoreController:
         self._target_resource_configs = []
         self.ui_zones = {}
 
-        # 👑 НОВОЕ: Информационная панель спека и явный выбор профиля
+        # 👑 Информационная панель спека, выбора профиля и FPS
         self.info_frame = ctk.CTkFrame(root, fg_color="transparent")
         self.info_frame.pack(pady=(5, 5), fill="x", padx=10)
 
@@ -72,12 +74,22 @@ class CoreController:
 
         ctk.CTkLabel(prof_ctrl_frame, text="Профиль экрана:", font=("Arial", 12)).pack(side="left", padx=5)
 
-        # Выпадающий список (пока заблокирован, ждет определения спека)
+        # Выпадающий список профилей (пока заблокирован, ждет определения спека)
         self.combo_main_profile = ctk.CTkComboBox(
             prof_ctrl_frame, values=["Нет данных"], state="disabled",
-            command=self._on_main_profile_changed, width=200, font=("Arial", 12, "bold")
+            command=self._on_main_profile_changed, width=170, font=("Arial", 12, "bold")
         )
         self.combo_main_profile.pack(side="left", padx=5)
+
+        # 👑 Выбор целевой частоты (FPS)
+        ctk.CTkLabel(prof_ctrl_frame, text="FPS:", font=("Arial", 12)).pack(side="left", padx=(10, 2))
+        self.combo_fps = ctk.CTkComboBox(
+            prof_ctrl_frame, values=["10", "30", "60", "120", "180"],
+            width=70, font=("Arial", 12, "bold"), command=self._on_fps_changed
+        )
+        self.combo_fps.pack(side="left", padx=5)
+        self.combo_fps.set("30")  # По умолчанию 30 FPS для стабильности на ноуте
+        self.target_fps = 30
 
         # GUI — кнопка старта
         self.agent_toggle = ctk.CTkButton(
@@ -139,17 +151,33 @@ class CoreController:
             tools_frame, text="⌨️ Редактор хоткеев", command=self._open_spell_editor,
             width=140, height=30, fg_color="#10B981", hover_color="#059669"
         )
-        self.spell_editor_btn.grid(row=1, column=0, columnspan=2, padx=5, pady=0)
+        self.spell_editor_btn.grid(row=1, column=0, padx=5, pady=0)
 
-    # 👑 НОВЫЙ МЕТОД: Горячее переключение профиля прямо в Главном окне
+        self.buff_trainer_btn = ctk.CTkButton(
+            tools_frame, text="🧠 Трейнер баффов", command=self._open_buff_trainer,
+            width=140, height=30, fg_color="#F59E0B", hover_color="#D97706"
+        )
+        self.buff_trainer_btn.grid(row=1, column=1, padx=5, pady=0)
+
+    def _on_fps_changed(self, choice):
+        """Срабатывает при смене частоты работы агента в интерфейсе"""
+        try:
+            self.target_fps = int(choice)
+            print(f"⚡ Целевой FPS изменен на: {self.target_fps}")
+        except ValueError:
+            self.target_fps = 30
+
+    def _open_buff_trainer(self):
+        """Открывает визуальный классификатор неизвестных баффов"""
+        current_spec = getattr(self, "_last_spec_id", 260) if getattr(self, "_last_spec_id", None) else 260
+        BuffTrainerWindow(parent=self.root, spec_id=current_spec)
+
     def _on_main_profile_changed(self, selected_profile):
-        """Срабатывает, когда пользователь выбирает профиль из выпадающего списка"""
+        """Горячее переключение профиля прямо во время работы"""
         if not self._last_spec_id:
             return
 
         spec_id = self._last_spec_id
-
-        # Запоминаем выбор для будущих запусков
         active_file = f"class_data/{spec_id}/ui_profiles/active_profile.txt"
         try:
             os.makedirs(os.path.dirname(active_file), exist_ok=True)
@@ -158,7 +186,6 @@ class CoreController:
         except Exception as e:
             print(f"⚠️ Ошибка сохранения активного профиля: {e}")
 
-        # Горячая подгрузка координат (без перезапуска агента!)
         ui_profile_path = f"class_data/{spec_id}/ui_profiles/{selected_profile}"
         if os.path.exists(ui_profile_path):
             try:
@@ -181,7 +208,6 @@ class CoreController:
         current_spec = getattr(self, "_last_spec_id", 260) if getattr(self, "_last_spec_id", None) else 260
         ProfileCalibrator(self.root, spec_id=current_spec, profile_name=self.combo_main_profile.get())
 
-    # 👑 ОБНОВЛЕННЫЙ МЕТОД: Умная загрузка спека и подтягивание списка профилей
     def _load_spec_config(self, spec_id):
         self._last_spec_id = spec_id
         self.current_profile = None
@@ -189,7 +215,7 @@ class CoreController:
         self.ui_zones = {}
 
         try:
-            # 1. Красиво выводим текущий спек в интерфейс
+            # 1. Выводим текущий спек в интерфейс
             spec_name = self.spec_detector.spec_names.get(str(spec_id), f"Неизвестно ({spec_id})")
             self.root.after(0, lambda: self.lbl_current_spec.configure(
                 text=f"Спек: {spec_name}", text_color="#10B981"
@@ -216,7 +242,7 @@ class CoreController:
                 except Exception:
                     pass
 
-            # 4. Обновляем выпадающий список (Разблокируем его и заполняем)
+            # 4. Обновляем выпадающий список (Разблокируем и заполняем)
             def update_combo():
                 self.combo_main_profile.configure(state="normal", values=available_profiles)
                 self.combo_main_profile.set(profile_name)
@@ -245,7 +271,7 @@ class CoreController:
                     spells = json.load(f)
                     self.current_hotkeys = {k: v.get("hotkey") for k, v in spells.items() if v.get("hotkey")}
 
-            # 8. Эталоны
+            # 8. Эталоны КД
             self.player._cooldown_etalons = {}
             etalon_dir = f"class_data/{spec_id}/cooldowns"
             if os.path.exists(etalon_dir):
@@ -257,7 +283,6 @@ class CoreController:
         except Exception as e:
             print(f"⚠️ Error loading config for {spec_id}: {e}")
 
-    # ===== Системные методы (без изменений) =====
     def _is_white(self, px, tol=15):
         return px[0] >= 255 - tol and px[1] >= 255 - tol and px[2] >= 255 - tol
 
@@ -270,8 +295,10 @@ class CoreController:
     def _on_closing(self):
         self._stop_combat_action()
         self.monitoring = False
-        if self.combat_action_thread and self.combat_action_thread.is_alive(): self.combat_action_thread.join(timeout=1)
-        if self.monitor_thread and self.monitor_thread.is_alive(): self.monitor_thread.join(timeout=1)
+        if self.combat_action_thread and self.combat_action_thread.is_alive():
+            self.combat_action_thread.join(timeout=1)
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            self.monitor_thread.join(timeout=1)
         if hasattr(self, 'keyboard_listener') and self.keyboard_listener.is_alive():
             self.keyboard_listener.stop()
             self.keyboard_listener.join(timeout=1)
@@ -313,7 +340,8 @@ class CoreController:
             self.modifiers_pressed['alt'] = False
 
     def _start_combat_action(self):
-        if self.combat_action_active: return
+        if self.combat_action_active:
+            return
         self.combat_action_active = True
         self.combat_action_thread = threading.Thread(target=self._rotation_action_loop, daemon=True)
         self.combat_action_thread.start()
@@ -322,6 +350,7 @@ class CoreController:
         self.combat_action_active = False
 
     def _rotation_action_loop(self):
+        """Основной цикл ротации с реалистичными задержками ввода"""
         while self.combat_action_active and self.monitoring:
             if any(self.modifiers_pressed.values()) or not self.current_profile or not self.current_hotkeys:
                 time.sleep(0.05)
@@ -337,18 +366,18 @@ class CoreController:
                 if action_key:
                     try:
                         self.keyboard.press(action_key)
-                        # Микро-задержка между нажатием и отпусканием клавиши (10-25 мс, как у механики пальца)
+                        # Имитация задержки нажатия пальцем (10-25 мс)
                         time.sleep(random.uniform(0.010, 0.025))
                         self.keyboard.release(action_key)
                         print(f"✅ Pressed: {action_key} ({spell})")
 
-                        # После успешного нажатия ждем чуть дольше (например, 80-150 мс), чтобы игра успела среагировать
+                        # Пауза после успешного каста (80-150 мс)
                         time.sleep(random.uniform(0.080, 0.150))
                         continue
                     except Exception as e:
                         print(f"[Action] Keyboard error: {e}")
 
-            # 👑 РАНДОМНЫЙ СПАМ-ИНТЕРВАЛ В ПОИСКАХ КОМАНДЫ (35–70 мс)
+            # 👑 Рандомный спам-интервал в поисках команды (35–70 мс)
             time.sleep(random.uniform(0.035, 0.070))
 
     def _update_signal_fields(self, sig_a, sig_b, sig_c, sig_d):
@@ -374,6 +403,7 @@ class CoreController:
             self._update_signal_fields("Agent stopped", "Agent stopped", "Agent stopped", "Agent stopped")
 
     def _agent_loop(self):
+        """Сверхбыстрый цикл зрения с использованием mss и точным контролем FPS"""
         try:
             target_windows = [w for w in gw.getWindowsWithTitle("World of Warcraft") if w.visible]
             if not target_windows:
@@ -391,11 +421,25 @@ class CoreController:
 
             combat_state = False
 
+            # 👑 Инициализируем быстрый захватчик mss ОДИН РАЗ перед циклом
+            sct = mss.mss()
+
             while self.monitoring:
+                loop_start_time = time.perf_counter()
+
                 try:
-                    screen = ImageGrab.grab(bbox=(x0, y0, x1, y1))
+                    # Обновляем координаты окна игры на лету
+                    win = target_windows[0]
+                    x0, y0, x1, y1 = win.left, win.top, win.left + win.width, win.top + win.height
+
+                    # 👑 Мгновенный снимок через mss (выполняется за ~2 мс)
+                    monitor = {"top": y0, "left": x0, "width": x1 - x0, "height": y1 - y0}
+                    sct_img = sct.grab(monitor)
+                    screen = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+
                     w, h = screen.size
-                    if w == 0 or h == 0: raise ValueError("Empty capture")
+                    if w == 0 or h == 0:
+                        raise ValueError("Empty capture")
 
                     try:
                         payload_d = screen.getpixel((2, 0))
@@ -451,12 +495,22 @@ class CoreController:
                     self._safe_update(sig_a, sig_b, sig_c, sig_d)
 
                 except Exception as e:
-                    self._safe_update(f"Capture err", "Error", "Error", str(e)[:30])
+                    self._safe_update("Capture err", "Error", "Error", str(e)[:30])
                     break
-                time.sleep(0.1)
+
+                # 👑 УМНЫЙ КОНТРОЛЬ FPS
+                target_delay = 1.0 / max(1, self.target_fps)
+                elapsed = time.perf_counter() - loop_start_time
+                sleep_time = target_delay - elapsed
+
+                if sleep_time > 0:
+                    if sleep_time > 0.003:
+                        time.sleep(sleep_time - 0.002)
+                    while (time.perf_counter() - loop_start_time) < target_delay:
+                        pass
 
         except Exception as e:
-            self._safe_update(f"Agent failed", "Fatal", "Fatal", str(e)[:30])
+            self._safe_update("Agent failed", "Fatal", "Fatal", str(e)[:30])
         finally:
             self._stop_combat_action()
             self._stop_agent_safely()

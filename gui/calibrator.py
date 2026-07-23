@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import tkinter as tk
 import customtkinter as ctk
 from PIL import Image, ImageTk, ImageGrab
@@ -384,15 +385,26 @@ class ProfileCalibrator(ctk.CTkToplevel):
         win = target_windows[0]
         self.wow_offset_x, self.wow_offset_y = win.left, win.top
 
-        # Захватываем оригинальный скриншот
-        self.raw_screenshot = ImageGrab.grab(bbox=(win.left, win.top, win.left + win.width, win.top + win.height))
+        # 👑 100% РАБОЧЕЕ РЕШЕНИЕ ДЛЯ ОДНОГО МОНИТОРА:
+        self.withdraw()          # Прячем окно калибратора
+        self.update_idletasks()  # Принудительно заставляем Windows очистить графический буфер
+        self.update()            # Обновляем экран
+        time.sleep(0.5)          # Даем ровно 500 мс игре, чтобы отрисоваться под нами
 
-        # 👑 СОХРАНЕНИЕ ЭТАЛОНА НА ДИСК
         try:
-            self.raw_screenshot.save(self.img_path)
-            print(f"💾 Скриншот-эталон сохранен: {self.img_path}")
-        except Exception as e:
-            print(f"⚠️ Не удалось сохранить файл {self.img_path}: {e}")
+            # Захватываем чистый скриншот игры
+            self.raw_screenshot = ImageGrab.grab(bbox=(win.left, win.top, win.left + win.width, win.top + win.height))
+
+            # Сохраняем эталон на диск
+            try:
+                self.raw_screenshot.save(self.img_path)
+                print(f"💾 Скриншот-эталон сохранен: {self.img_path}")
+            except Exception as e:
+                print(f"⚠️ Не удалось сохранить файл {self.img_path}: {e}")
+        finally:
+            # Обязательно возвращаем окно калибратора обратно на экран!
+            self.deiconify()
+            self.lift()
 
         self.zoom_level = 1.0
         self.lbl_zoom.configure(text="100%")
